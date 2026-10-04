@@ -1,14 +1,17 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:hand_landmarker/hand_landmarker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../models/frame_landmarks.dart';
+import '../providers/app_provider.dart';
 import '../services/tflite_ai_service.dart';
 import '../utils/constants.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/esenyas_app_bar.dart';
+import '../widgets/hand_landmarks_painter.dart';
 
 /// Testing Mode screen for evaluating gesture recognition accuracy.
 ///
@@ -37,8 +40,9 @@ class _TestingModeScreenState extends State<TestingModeScreen> {
   bool _cameraReady = false;
   bool _permissionGranted = true;
 
-  // ── Landmark buffer ──
+  // ── Landmark buffer & live overlay ──
   final List<FrameLandmarks> _frameBuffer = [];
+  final ValueNotifier<List<Hand>> _liveHands = ValueNotifier<List<Hand>>([]);
   StreamSubscription<List<Hand>>? _landmarkSub;
 
   // ── Capture state ──
@@ -69,6 +73,7 @@ class _TestingModeScreenState extends State<TestingModeScreen> {
   void dispose() {
     _captureTimer?.cancel();
     _landmarkSub?.cancel();
+    _liveHands.dispose();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _aiService.dispose();
@@ -124,6 +129,7 @@ class _TestingModeScreenState extends State<TestingModeScreen> {
   // ──────────────────────────────────────────────────────────
 
   void _onLandmarks(List<Hand> hands) {
+    _liveHands.value = hands;
     if (!_isCapturing) return;
     if (hands.isEmpty) {
       _frameBuffer.add(const FrameLandmarks.noHand());
@@ -550,6 +556,8 @@ class _TestingModeScreenState extends State<TestingModeScreen> {
       );
     }
 
+    final showLandmarks = context.watch<AppProvider>().showHandLandmarks;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(ESenyasDimens.borderRadiusMd),
       child: Stack(
@@ -565,12 +573,23 @@ class _TestingModeScreenState extends State<TestingModeScreen> {
                   child: SizedBox(
                     width: _cameraController!.value.previewSize!.height,
                     height: _cameraController!.value.previewSize!.width,
-                    child: CameraPreview(_cameraController!),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CameraPreview(_cameraController!),
+                        HandSkeletonOverlay(
+                          handsNotifier: _liveHands,
+                          isFrontCamera: true,
+                          enabled: showLandmarks,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
+          // REC badge
           if (_isCapturing)
             Positioned(
               top: 8,
@@ -600,6 +619,64 @@ class _TestingModeScreenState extends State<TestingModeScreen> {
                 ),
               ),
             ),
+          // Hand detection status badge
+          Positioned(
+            top: 8,
+            left: _isCapturing ? 72 : 8,
+            child: HandDetectionBadge(handsNotifier: _liveHands),
+          ),
+          // Quick toggle for landmarks overlay
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Consumer<AppProvider>(
+              builder: (context, provider, _) {
+                final active = provider.showHandLandmarks;
+                return GestureDetector(
+                  onTap: () => provider.setShowHandLandmarks(!active),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: active
+                            ? const Color(0xFF00E5FF)
+                            : Colors.white24,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          active ? Icons.visibility : Icons.visibility_off,
+                          size: 13,
+                          color: active
+                              ? const Color(0xFF00E5FF)
+                              : Colors.white60,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          active ? 'Landmarks ON' : 'Landmarks OFF',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: active
+                                ? const Color(0xFF00E5FF)
+                                : Colors.white60,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

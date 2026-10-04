@@ -11,6 +11,7 @@ import '../services/tflite_ai_service.dart';
 import '../utils/constants.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/esenyas_app_bar.dart';
+import '../widgets/hand_landmarks_painter.dart';
 
 /// Gesture translation screen — the primary application feature.
 ///
@@ -47,6 +48,7 @@ class _GestureTranslationScreenState
 
   // ── Landmark buffer (populated from hand_landmarker stream) ──
   final List<FrameLandmarks> _frameBuffer = [];
+  final ValueNotifier<List<Hand>> _liveHands = ValueNotifier<List<Hand>>([]);
   StreamSubscription<List<Hand>>? _landmarkSub;
 
   // ── Capture-loop state ──
@@ -83,6 +85,7 @@ class _GestureTranslationScreenState
   void dispose() {
     _captureTimer?.cancel();
     _landmarkSub?.cancel();
+    _liveHands.dispose();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _aiService.dispose();
@@ -148,6 +151,8 @@ class _GestureTranslationScreenState
   // ──────────────────────────────────────────────────────────
 
   void _onLandmarks(List<Hand> hands) {
+    _liveHands.value = hands;
+
     if (!_isDetecting) return;
 
     if (hands.isEmpty) {
@@ -499,7 +504,20 @@ class _GestureTranslationScreenState
                     child: SizedBox(
                       width: _cameraController!.value.previewSize!.height,
                       height: _cameraController!.value.previewSize!.width,
-                      child: CameraPreview(_cameraController!),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CameraPreview(_cameraController!),
+                          HandSkeletonOverlay(
+                            handsNotifier: _liveHands,
+                            isFrontCamera:
+                                _lensDirection == CameraLensDirection.front,
+                            enabled: context
+                                .watch<AppProvider>()
+                                .showHandLandmarks,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -534,6 +552,64 @@ class _GestureTranslationScreenState
                   ),
                 ),
               ),
+            // Hand detection status badge
+            Positioned(
+              top: 10,
+              left: _isDetecting ? 76 : 12,
+              child: HandDetectionBadge(handsNotifier: _liveHands),
+            ),
+            // Landmarks toggle button
+            Positioned(
+              top: 8,
+              right: 46,
+              child: Consumer<AppProvider>(
+                builder: (context, provider, _) {
+                  final active = provider.showHandLandmarks;
+                  return GestureDetector(
+                    onTap: () => provider.setShowHandLandmarks(!active),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: active
+                              ? const Color(0xFF00E5FF)
+                              : Colors.white24,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            active ? Icons.visibility : Icons.visibility_off,
+                            color: active
+                                ? const Color(0xFF00E5FF)
+                                : Colors.white70,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            active ? 'Points ON' : 'Points OFF',
+                            style: TextStyle(
+                              color: active
+                                  ? const Color(0xFF00E5FF)
+                                  : Colors.white70,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
             // Camera flip button
             Positioned(
               top: 8,

@@ -172,6 +172,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 16),
 
+                            // AI & Landmark Detection group
+                            _GroupLabel(text: 'AI & Landmark Detection', darkMode: dm),
+                            _SettingsGroup(
+                              darkMode: dm,
+                              children: [
+                                _SettingRow(
+                                  icon: Icons.front_hand_outlined,
+                                  iconBg: const Color(0xFF00B0FF),
+                                  label: 'Hand Skeleton & Landmarks',
+                                  subtitle: 'Ipakita ang 21 points & skeleton sa camera',
+                                  toggle: true,
+                                  toggleValue: provider.showHandLandmarks,
+                                  onToggle: (v) => provider.setShowHandLandmarks(v),
+                                  darkMode: dm,
+                                  isLast: true,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
                             // Language group
                             _GroupLabel(text: 'Language & Region', darkMode: dm),
                             _SettingsGroup(

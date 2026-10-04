@@ -14,6 +14,14 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Hand Landmarks & Skeleton Overlay ──
+  bool _showHandLandmarks = true;
+  bool get showHandLandmarks => _showHandLandmarks;
+  void setShowHandLandmarks(bool value) {
+    _showHandLandmarks = value;
+    notifyListeners();
+  }
+
   // ── History ──
   List<HistoryEntry> _historyItems = [
     HistoryEntry(
